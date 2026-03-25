@@ -1,4 +1,10 @@
 <?php
+/**
+ * Class WC_Order_Refund_Data_Store_CPT file.
+ *
+ * @package WooCommerce\DataStores
+ */
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -7,13 +13,12 @@ if ( ! defined( 'ABSPATH' ) ) {
  * WC Order Refund Data Store: Stored in CPT.
  *
  * @version  3.0.0
- * @category Class
- * @author   WooThemes
  */
 class WC_Order_Refund_Data_Store_CPT extends Abstract_WC_Order_Data_Store_CPT implements WC_Object_Data_Store_Interface, WC_Order_Refund_Data_Store_Interface {
 
 	/**
 	 * Data stored in meta keys, but not considered "meta" for an order.
+	 *
 	 * @since 3.0.0
 	 * @var array
 	 */
@@ -22,6 +27,7 @@ class WC_Order_Refund_Data_Store_CPT extends Abstract_WC_Order_Data_Store_CPT im
 		'_cart_discount',
 		'_refund_amount',
 		'_refunded_by',
+		'_refunded_payment',
 		'_refund_reason',
 		'_cart_discount_tax',
 		'_order_shipping',
@@ -35,8 +41,9 @@ class WC_Order_Refund_Data_Store_CPT extends Abstract_WC_Order_Data_Store_CPT im
 
 	/**
 	 * Delete a refund - no trash is supported.
-	 * @param WC_Order $order
-	 * @param array $args Array of args to pass to the delete method.
+	 *
+	 * @param WC_Order $order Order object.
+	 * @param array    $args Array of args to pass to the delete method.
 	 */
 	public function delete( &$order, $args = array() ) {
 		$id = $order->get_id();
@@ -45,33 +52,71 @@ class WC_Order_Refund_Data_Store_CPT extends Abstract_WC_Order_Data_Store_CPT im
 			return;
 		}
 
+		$parent_order_id  = $order->get_parent_id();
+		$refund_cache_key = WC_Cache_Helper::get_cache_prefix( 'orders' ) . 'refunds' . $parent_order_id;
 		wp_delete_post( $id );
+		wp_cache_delete( $refund_cache_key, 'orders' );
 		$order->set_id( 0 );
+
+		/**
+		 * Fires when a refund is deleted.
+		 *
+		 * @param int $id The refund ID.
+		 * @since 3.0.0
+		 */
 		do_action( 'woocommerce_delete_order_refund', $id );
 	}
 
 	/**
 	 * Read refund data. Can be overridden by child classes to load other props.
 	 *
-	 * @param WC_Order $refund
-	 * @param object $post_object
+	 * @param WC_Order_Refund $refund Refund object.
+	 * @param object          $post_object Post object.
 	 * @since 3.0.0
 	 */
 	protected function read_order_data( &$refund, $post_object ) {
 		parent::read_order_data( $refund, $post_object );
 		$id = $refund->get_id();
-		$refund->set_props( array(
-			'amount'      => get_post_meta( $id, '_refund_amount', true ),
-			'refunded_by' => metadata_exists( 'post', $id, '_refunded_by' ) ? get_post_meta( $id, '_refunded_by', true ) : absint( $post_object->post_author ),
-			'reason'      => metadata_exists( 'post', $id, '_refund_reason' ) ? get_post_meta( $id, '_refund_reason', true ) : $post_object->post_excerpt,
-		) );
+
+		$post_meta = get_post_meta( $id );
+
+		$refunded_by = $post_meta['_refunded_by'][0] ?? null;
+		$reason      = $post_meta['_refund_reason'][0] ?? '';
+
+		$refund->set_props(
+			array(
+				'amount'           => $post_meta['_refund_amount'][0] ?? 0,
+				'refunded_by'      => metadata_exists( 'post', $id, '_refunded_by' ) ? $refunded_by : absint( $post_object->post_author ),
+				'refunded_payment' => wc_string_to_bool( $post_meta['_refunded_payment'][0] ?? false ),
+				'reason'           => metadata_exists( 'post', $id, '_refund_reason' ) ? $reason : $post_object->post_excerpt,
+			)
+		);
+	}
+
+	/**
+	 * Method to update a refund in the database.
+	 *
+	 * @param \WC_Order_Refund $refund Refund object.
+	 */
+	public function update( &$refund ) {
+		parent::update( $refund );
+
+		/**
+		 * Fires when an order refund is updated.
+		 *
+		 * @since 10.4.0
+		 *
+		 * @param int              $refund_id The order refund ID.
+		 * @param \WC_Order_Refund $refund    The order refund object.
+		 */
+		do_action( 'woocommerce_update_order_refund', $refund->get_id(), $refund );
 	}
 
 	/**
 	 * Helper method that updates all the post meta for an order based on it's settings in the WC_Order class.
 	 *
-	 * @param WC_Order
-	 * @param WC_Order $refund
+	 * @param WC_Order_Refund $refund Refund object.
+	 *
 	 * @since 3.0.0
 	 */
 	protected function update_post_meta( &$refund ) {
@@ -79,9 +124,10 @@ class WC_Order_Refund_Data_Store_CPT extends Abstract_WC_Order_Data_Store_CPT im
 
 		$updated_props     = array();
 		$meta_key_to_props = array(
-			'_refund_amount' => 'amount',
-			'_refunded_by'   => 'refunded_by',
-			'_refund_reason' => 'reason',
+			'_refund_amount'    => 'amount',
+			'_refunded_by'      => 'refunded_by',
+			'_refunded_payment' => 'refunded_payment',
+			'_refund_reason'    => 'reason',
 		);
 
 		$props_to_update = $this->get_props_to_update( $refund, $meta_key_to_props );
@@ -100,9 +146,10 @@ class WC_Order_Refund_Data_Store_CPT extends Abstract_WC_Order_Data_Store_CPT im
 	 * @return string
 	 */
 	protected function get_post_title() {
-		// @codingStandardsIgnoreStart
-		/* translators: %s: Order date */
-		return sprintf( __( 'Refund &ndash; %s', 'woocommerce' ), strftime( _x( '%b %d, %Y @ %I:%M %p', 'Order date parsed by strftime', 'woocommerce' ) ) );
-		// @codingStandardsIgnoreEnd
+		return sprintf(
+			/* translators: %s: Order date */
+			__( 'Refund &ndash; %s', 'woocommerce' ),
+			( new DateTime( 'now' ) )->format( _x( 'M d, Y @ h:i A', 'Order date parsed by DateTime::format', 'woocommerce' ) ) // phpcs:ignore WordPress.WP.I18n.MissingTranslatorsComment, WordPress.WP.I18n.UnorderedPlaceholdersText
+		);
 	}
 }

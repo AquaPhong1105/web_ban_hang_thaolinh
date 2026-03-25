@@ -1,22 +1,30 @@
 <?php
+/**
+ * Admin view: Settings tax
+ *
+ * @package WooCommerce\Admin\Settings
+ */
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 ?>
 
 <div class="wc-tax-rates-search" id="rates-search">
-	<input type="search" class="wc-tax-rates-search-field" placeholder="<?php esc_attr_e( 'Search&hellip;', 'woocommerce' ); ?>" value="<?php if ( isset( $_GET['s'] ) ) { echo esc_attr( $_GET['s'] ); } ?>" />
+	<input type="search" class="wc-tax-rates-search-field" placeholder="<?php esc_attr_e( 'Search&hellip;', 'woocommerce' ); ?>" value="<?php echo isset( $_GET['s'] ) ? esc_attr( $_GET['s'] ) : ''; ?>" />
 </div>
 
 <div id="rates-pagination"></div>
 
-<h3><?php
+<h3>
+	<?php
 	/* translators: %s: tax rate */
 	printf(
 		__( '"%s" tax rates', 'woocommerce' ),
 		$current_class ? esc_html( $current_class ) : __( 'Standard', 'woocommerce' )
 	);
-?></h3>
+	?>
+</h3>
 
 <table class="wc_tax_rates wc_input_table widefat">
 	<thead>
@@ -49,6 +57,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	</tbody>
 </table>
 
+<div id="rates-bottom-pagination"></div>
+
 <script type="text/html" id="tmpl-wc-tax-table-row">
 	<tr class="tips" data-tip="<?php printf( esc_attr__( 'Tax rate ID: %s', 'woocommerce' ), '{{ data.tax_rate_id }}' ); ?>" data-id="{{ data.tax_rate_id }}">
 		<td class="country">
@@ -68,7 +78,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 		</td>
 
 		<td class="rate">
-			<input type="number" step="any" min="0" value="{{ data.tax_rate }}" placeholder="0" name="tax_rate[{{ data.tax_rate_id }}]" data-attribute="tax_rate" />
+			<input type="text" value="{{ data.tax_rate }}" placeholder="0" name="tax_rate[{{ data.tax_rate_id }}]" data-attribute="tax_rate" />
 		</td>
 
 		<td class="name">
@@ -98,23 +108,29 @@ if ( ! defined( 'ABSPATH' ) ) {
 <script type="text/html" id="tmpl-wc-tax-table-pagination">
 	<div class="tablenav">
 		<div class="tablenav-pages">
-			<span class="displaying-num"><?php
+			<span class="displaying-num">
+				<?php
 				/* translators: %s: number */
 				printf(
 					__( '%s items', 'woocommerce' ), // %s will be a number eventually, but must be a string for now.
 					'{{ data.qty_rates }}'
 				);
-			?></span>
+				?>
+			</span>
 			<span class="pagination-links">
-
-				<a class="tablenav-pages-navspan" data-goto="1">
-					<span class="screen-reader-text"><?php esc_html_e( 'First page', 'woocommerce' ); ?></span>
-					<span aria-hidden="true">&laquo;</span>
-				</a>
-				<a class="tablenav-pages-navspan" data-goto="<# print( Math.max( 1, parseInt( data.current_page, 10 ) - 1 ) ) #>">
-					<span class="screen-reader-text"><?php esc_html_e( 'Previous page', 'woocommerce' ); ?></span>
-					<span aria-hidden="true">&lsaquo;</span>
-				</a>
+				<# if ( data.current_page === 1 ) { #>
+					<span class="tablenav-pages-navspan button disabled" aria-hidden="true">&laquo;</span>
+					<span class="tablenav-pages-navspan button disabled" aria-hidden="true">&lsaquo;</span>
+				<# } else { #>
+					<a class="button" data-goto="1">
+						<span class="screen-reader-text"><?php esc_html_e( 'First page', 'woocommerce' ); ?></span>
+						<span aria-hidden="true">&laquo;</span>
+					</a>
+					<a class="button" data-goto="<# print( Math.max( 1, parseInt( data.current_page, 10 ) - 1 ) ) #>">
+						<span class="screen-reader-text"><?php esc_html_e( 'Previous page', 'woocommerce' ); ?></span>
+						<span aria-hidden="true">&lsaquo;</span>
+					</a>
+				<# } #>
 
 				<span class="paging-input">
 					<label for="current-page-selector" class="screen-reader-text"><?php esc_html_e( 'Current page', 'woocommerce' ); ?></label>
@@ -128,14 +144,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 					?>
 				</span>
 
-				<a class="tablenav-pages-navspan" data-goto="<# print( Math.min( data.qty_pages, parseInt( data.current_page, 10 ) + 1 ) ) #>">
-					<span class="screen-reader-text"><?php esc_html_e( 'Next page', 'woocommerce' ); ?></span>
-					<span aria-hidden="true">&rsaquo;</span>
-				</a>
-				<a class="tablenav-pages-navspan" data-goto="{{ data.qty_pages }}">
-					<span class="screen-reader-text"><?php esc_html_e( 'Last page', 'woocommerce' ); ?></span>
-					<span aria-hidden="true">&raquo;</span>
-				</a>
+				<# if ( data.current_page === data.qty_pages ) { #>
+					<span class="tablenav-pages-navspan button disabled" aria-hidden="true">&rsaquo;</span>
+					<span class="tablenav-pages-navspan button disabled" aria-hidden="true">&raquo;</span>
+				<# } else { #>
+					<a class="button" data-goto="<# print( Math.min( data.qty_pages, parseInt( data.current_page, 10 ) + 1 ) ) #>">
+						<span class="screen-reader-text"><?php esc_html_e( 'Next page', 'woocommerce' ); ?></span>
+						<span aria-hidden="true">&rsaquo;</span>
+					</a>
+					<a class="button" data-goto="{{ data.qty_pages }}">
+						<span class="screen-reader-text"><?php esc_html_e( 'Last page', 'woocommerce' ); ?></span>
+						<span aria-hidden="true">&raquo;</span>
+					</a>
+				<# } #>
 
 			</span>
 		</div>

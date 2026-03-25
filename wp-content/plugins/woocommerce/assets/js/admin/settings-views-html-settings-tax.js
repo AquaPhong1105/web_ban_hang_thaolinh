@@ -17,10 +17,10 @@
 			paginationTemplate = wp.template( 'wc-tax-table-pagination' ),
 			$table             = $( '.wc_tax_rates' ),
 			$tbody             = $( '#rates' ),
-			$save_button       = $( 'input[name="save"]' ),
-			$pagination        = $( '#rates-pagination' ),
+			$save_button       = $( ':input[name="save"]' ),
+			$pagination        = $( '#rates-pagination, #rates-bottom-pagination' ),
 			$search_field      = $( '#rates-search .wc-tax-rates-search-field' ),
-			$submit            = $( '.submit .button-primary[type=submit]' ),
+			$submit            = $( '.woocommerce-save-button[type=submit]' ),
 			WCTaxTableModelConstructor = Backbone.Model.extend({
 				changes: {},
 				setRateAttribute: function( rateID, attribute, value ) {
@@ -72,9 +72,13 @@
 							opacity: 0.6
 						}
 					});
+					if ( ! $submit.attr( 'disabled' ) ) {
+						$submit.addClass( 'is-busy' );
+					}
 				},
 				unblock: function() {
 					$( '.wc_tax_rates' ).unblock();
+					$submit.removeClass( 'is-busy' );
 				},
 				save: function() {
 					var self = this;
@@ -91,7 +95,7 @@
 							changes: self.changes
 						},
 						success: function( response, textStatus ) {
-							if ( 'success' === textStatus ) {
+							if ( 'success' === textStatus && response.success ) {
 								WCTaxTableModelInstance.set( 'rates', response.data.rates );
 								WCTaxTableModelInstance.trigger( 'change:rates' );
 
@@ -125,7 +129,7 @@
 					$pagination.on( 'change', 'input', { view: this }, this.onPageChange );
 					$( window ).on( 'beforeunload', { view: this }, this.unloadConfirmation );
 					$submit.on( 'click', { view: this }, this.onSubmit );
-					$save_button.attr( 'disabled','disabled' );
+					$save_button.prop( 'disabled', true );
 
 					// Can bind these directly to the buttons, as they won't get overwritten.
 					$table.find( '.insert' ).on( 'click', { view: this }, this.onAddNewRow );
@@ -141,16 +145,11 @@
 						paged_rates = _.toArray( rates ).slice( first_index, last_index ),
 						view        = this;
 
-					// Blank out the contents.
-					this.$el.empty();
-
 					if ( paged_rates.length ) {
 						// Populate $tbody with the current page of results.
-						$.each( paged_rates, function( id, rowData ) {
-							view.$el.append( view.rowTemplate( rowData ) );
-						} );
+						this.el.innerHTML = paged_rates.map( rowData => view.rowTemplate( rowData ) ).join( '' );
 					} else {
-						view.$el.append( rowTemplateEmpty() );
+						this.el.innerHTML = rowTemplateEmpty();
 					}
 
 					// Initialize autocomplete for countries.
@@ -165,8 +164,9 @@
 						minLength: 3
 					});
 
-					// Postcode and city don't have `name` values by default. They're only created if the contents changes, to save on database queries (I think)
-					this.$el.find( 'td.postcode input, td.city input' ).change( function() {
+					// Postcode and city don't have `name` values by default.
+					// They're only created if the contents changes, to save on database queries (I think)
+					this.$el.find( 'td.postcode input, td.city input' ).on( 'change', function() {
 						$( this ).attr( 'name', $( this ).data( 'name' ) );
 					});
 
@@ -232,7 +232,9 @@
 
 						reordered_rates = _.map( rates_to_reorder, function( rate ) {
 							rate.tax_rate_order++;
-							changes[ rate.tax_rate_id ] = _.extend( changes[ rate.tax_rate_id ] || {}, { tax_rate_order : rate.tax_rate_order } );
+							changes[ rate.tax_rate_id ] = _.extend(
+								changes[ rate.tax_rate_id ] || {}, { tax_rate_order : rate.tax_rate_order }
+							);
 							return rate;
 						} );
 					} else {
@@ -289,6 +291,7 @@
 					var $target  = $( event.currentTarget );
 
 					event.preventDefault();
+					event.stopPropagation();
 					event.data.view.page = $target.data( 'goto' ) ? $target.data( 'goto' ) : $target.val();
 					event.data.view.render();
 					event.data.view.updateUrl();
@@ -319,11 +322,11 @@
 				},
 				setUnloadConfirmation: function() {
 					this.needsUnloadConfirm = true;
-					$save_button.removeAttr( 'disabled' );
+					$save_button.prop( 'disabled', false );
 				},
 				clearUnloadConfirmation: function() {
 					this.needsUnloadConfirm = false;
-					$save_button.attr( 'disabled', 'disabled' );
+					$save_button.prop( 'disabled', true );
 				},
 				unloadConfirmation: function( event ) {
 					if ( event.data.view.needsUnloadConfirm ) {

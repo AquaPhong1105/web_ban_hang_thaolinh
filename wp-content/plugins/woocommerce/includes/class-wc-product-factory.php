@@ -1,49 +1,67 @@
 <?php
-
-if ( ! defined( 'ABSPATH' ) ) {
-	exit; // Exit if accessed directly
-}
-
 /**
- * Product Factory Class
+ * Product Factory
  *
  * The WooCommerce product factory creating the right product object.
  *
- * @class 		WC_Product_Factory
- * @version		3.0.0
- * @package		WooCommerce/Classes
- * @category	Class
- * @author 		WooThemes
+ * @package WooCommerce\Classes
+ * @version 3.0.0
+ */
+
+use Automattic\WooCommerce\Internal\Caches\ProductCache;
+use Automattic\WooCommerce\Enums\ProductType;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * Product factory class.
  */
 class WC_Product_Factory {
 
 	/**
 	 * Get a product.
 	 *
-	 * @param mixed $product_id (default: false)
+	 * @param mixed $product_id Product instance, post instance, numeric or false to use global $post.
 	 * @param array $deprecated Previously used to pass arguments to the factory, e.g. to force a type.
-	 * @return WC_Product|bool Product object or null if the product cannot be loaded.
+	 * @return WC_Product|bool  Product object or false if the product cannot be loaded.
 	 */
 	public function get_product( $product_id = false, $deprecated = array() ) {
-		if ( ! $product_id = $this->get_product_id( $product_id ) ) {
+		$product_id = (int) $this->get_product_id( $product_id );
+
+		if ( ! $product_id ) {
 			return false;
 		}
 
-		$product_type = $this->get_product_type( $product_id );
+		$use_product_cache = \Automattic\WooCommerce\Utilities\FeaturesUtil::feature_is_enabled( 'product_instance_caching' );
+		if ( $use_product_cache && empty( $deprecated ) ) {
+			// Nothing should be using the $deprecated argument still, but avoid using cache if they are.
+			$product_cache = wc_get_container()->get( ProductCache::class );
+			$product       = $product_cache->get( $product_id );
+			if ( $product ) {
+				return $product;
+			}
+		}
+		_prime_post_caches( array( $product_id ) );
+
+		$product_type = self::get_product_type( $product_id );
 
 		// Backwards compatibility.
 		if ( ! empty( $deprecated ) ) {
 			wc_deprecated_argument( 'args', '3.0', 'Passing args to the product factory is deprecated. If you need to force a type, construct the product class directly.' );
 
 			if ( isset( $deprecated['product_type'] ) ) {
-				$product_type = $this->get_classname_from_product_type( $deprecated['product_type'] );
+				$product_type = self::get_classname_from_product_type( $deprecated['product_type'] );
 			}
 		}
 
-		$classname = $this->get_product_classname( $product_id, $product_type );
+		$classname = self::get_product_classname( $product_id, $product_type );
 
 		try {
-			return new $classname( $product_id, $deprecated );
+			$product = new $classname( $product_id, $deprecated );
+			if ( $use_product_cache && isset( $product_cache ) && $product instanceof \WC_Product ) {
+				$product_cache->set( $product );
+			}
+			return $product;
 		} catch ( Exception $e ) {
 			return false;
 		}
@@ -53,12 +71,22 @@ class WC_Product_Factory {
 	 * Gets a product classname and allows filtering. Returns WC_Product_Simple if the class does not exist.
 	 *
 	 * @since  3.0.0
-	 * @param  int    $product_id
-	 * @param  string $product_type
+	 * @param  int    $product_id   Product ID.
+	 * @param  string $product_type Product type.
 	 * @return string
 	 */
 	public static function get_product_classname( $product_id, $product_type ) {
-		$classname = apply_filters( 'woocommerce_product_class', self::get_classname_from_product_type( $product_type ), $product_type, 'variation' === $product_type ? 'product_variation' : 'product', $product_id );
+		/**
+		 * Filter the product class name.
+		 *
+		 * @param string $classname   Classname.
+		 * @param string $product_type Product type.
+		 * @param string $context     Context.
+		 * @param int    $product_id  Product ID.
+		 *
+		 * @since 3.0.0
+		 */
+		$classname = apply_filters( 'woocommerce_product_class', self::get_classname_from_product_type( $product_type ), $product_type, ProductType::VARIATION === $product_type ? 'product_variation' : 'product', $product_id );
 
 		if ( ! $classname || ! class_exists( $classname ) ) {
 			$classname = 'WC_Product_Simple';
@@ -71,7 +99,7 @@ class WC_Product_Factory {
 	 * Get the product type for a product.
 	 *
 	 * @since 3.0.0
-	 * @param  int $product_id
+	 * @param  int $product_id Product ID.
 	 * @return string|false
 	 */
 	public static function get_product_type( $product_id ) {
@@ -87,7 +115,7 @@ class WC_Product_Factory {
 	/**
 	 * Create a WC coding standards compliant class name e.g. WC_Product_Type_Class instead of WC_Product_type-class.
 	 *
-	 * @param  string $product_type
+	 * @param  string $product_type Product type.
 	 * @return string|false
 	 */
 	public static function get_classname_from_product_type( $product_type ) {
@@ -97,13 +125,15 @@ class WC_Product_Factory {
 	/**
 	 * Get the product ID depending on what was passed.
 	 *
-	 * @since 3.0.0
-	 * @param  mixed $product
+	 * @since  3.0.0
+	 * @param  WC_Product|WP_Post|int|bool $product Product instance, post instance, numeric or false to use global $post.
 	 * @return int|bool false on failure
 	 */
 	private function get_product_id( $product ) {
-		if ( false === $product && isset( $GLOBALS['post'], $GLOBALS['post']->ID ) && 'product' === get_post_type( $GLOBALS['post']->ID ) ) {
-			return $GLOBALS['post']->ID;
+		global $post;
+
+		if ( false === $product && isset( $post, $post->ID ) && 'product' === get_post_type( $post->ID ) ) {
+			return absint( $post->ID );
 		} elseif ( is_numeric( $product ) ) {
 			return $product;
 		} elseif ( $product instanceof WC_Product ) {

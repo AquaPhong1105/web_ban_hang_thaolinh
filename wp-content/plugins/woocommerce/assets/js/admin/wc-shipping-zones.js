@@ -1,6 +1,13 @@
 /* global shippingZonesLocalizeScript, ajaxurl */
 ( function( $, data, wp, ajaxurl ) {
 	$( function() {
+		if ( 
+			! document.getElementById( 'tmpl-wc-shipping-zone-row' ) || 
+			! document.getElementById( 'tmpl-wc-shipping-zone-row-blank' ) 
+		) {
+			return;
+		}
+		
 		var $table          = $( '.wc-shipping-zones' ),
 			$tbody          = $( '.wc-shipping-zone-rows' ),
 			$save_button    = $( '.wc-shipping-zone-save' ),
@@ -81,6 +88,10 @@
 					$( window ).on( 'beforeunload', { view: this }, this.unloadConfirmation );
 					$( document.body ).on( 'click', '.wc-shipping-zone-add', { view: this }, this.onAddNewRow );
 				},
+				onAddNewRow: function() {
+					var $link = $( this );
+					window.location.href = $link.attr( 'href' );
+				},
 				block: function() {
 					$( this.el ).block({
 						message: null,
@@ -102,9 +113,11 @@
 
 					if ( _.size( zones ) ) {
 						// Sort zones
-						zones = _.sortBy( zones, function( zone ) {
-							return parseInt( zone.zone_order, 10 );
-						} );
+						zones = _( zones )
+							.chain()
+							.sortBy( function ( zone ) { return parseInt( zone.zone_id, 10 ); } )
+							.sortBy( function ( zone ) { return parseInt( zone.zone_order, 10 ); } )
+							.value();
 
 						// Populate $tbody with the current zones
 						$.each( zones, function( id, rowData ) {
@@ -130,11 +143,14 @@
 					$tr.find( '.wc-shipping-zone-delete' ).on( 'click', { view: this }, this.onDeleteRow );
 				},
 				initRows: function() {
+					const isEven = 0 !== ( $( 'tbody.wc-shipping-zone-rows tr' ).length % 2 );
+					const tfoot = $( 'tfoot.wc-shipping-zone-rows-tfoot' );
+
 					// Stripe
-					if ( 0 === ( $( 'tbody.wc-shipping-zone-rows tr' ).length % 2 ) ) {
-						$table.find( 'tbody.wc-shipping-zone-rows' ).next( 'tbody' ).find( 'tr' ).addClass( 'odd' );
+					if ( isEven ) {
+						tfoot.find( 'tr' ).addClass( 'even' );
 					} else {
-						$table.find( 'tbody.wc-shipping-zone-rows' ).next( 'tbody' ).find( 'tr' ).removeClass( 'odd' );
+						tfoot.find( 'tr' ).removeClass( 'even' );
 					}
 					// Tooltips
 					$( '#tiptip_holder' ).removeAttr( 'style' );
@@ -159,7 +175,15 @@
 								class_name = 'method_enabled';
 							}
 
-							$method_list.append( '<li class="wc-shipping-zone-method ' + class_name + '">' + shipping_method.title + '</li>' );
+							$method_list.append(
+								'<li data-id="' + 
+									shipping_method.instance_id + 
+									'" class="wc-shipping-zone-method ' + 
+									class_name + 
+									'">' + 
+									shipping_method.title + 
+								'</li>'
+							);
 						} );
 					} else {
 						$method_list.append( '<li class="wc-shipping-zone-method">' + data.strings.no_shipping_methods_offered + '</li>' );

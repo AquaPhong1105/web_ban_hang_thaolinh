@@ -2,11 +2,10 @@
 /**
  * Handles CSV export.
  *
- * @author   Automattic
- * @category Admin
- * @package  WooCommerce/Export
+ * @package  WooCommerce\Export
  * @version  3.1.0
  */
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -18,50 +17,71 @@ abstract class WC_CSV_Exporter {
 
 	/**
 	 * Type of export used in filter names.
+	 *
 	 * @var string
 	 */
 	protected $export_type = '';
 
 	/**
+	 * Filename to export to.
+	 *
+	 * @var string
+	 */
+	protected $filename = 'wc-export.csv';
+
+	/**
 	 * Batch limit.
+	 *
 	 * @var integer
 	 */
 	protected $limit = 50;
 
 	/**
 	 * Number exported.
+	 *
 	 * @var integer
 	 */
 	protected $exported_row_count = 0;
 
 	/**
 	 * Raw data to export.
+	 *
 	 * @var array
 	 */
 	protected $row_data = array();
 
 	/**
 	 * Total rows to export.
+	 *
 	 * @var integer
 	 */
 	protected $total_rows = 0;
 
 	/**
 	 * Columns ids and names.
+	 *
 	 * @var array
 	 */
 	protected $column_names = array();
 
 	/**
 	 * List of columns to export, or empty for all.
+	 *
 	 * @var array
 	 */
 	protected $columns_to_export = array();
 
 	/**
+	 * The delimiter parameter sets the field delimiter (one character only).
+	 *
+	 * @var string
+	 */
+	protected $delimiter = ',';
+
+	/**
 	 * Prepare data that will be exported.
 	 */
-	abstract function prepare_data_to_export();
+	abstract public function prepare_data_to_export();
 
 	/**
 	 * Return an array of supported column names and ids.
@@ -77,7 +97,7 @@ abstract class WC_CSV_Exporter {
 	 * Set column names.
 	 *
 	 * @since 3.1.0
-	 * @param array $column_names
+	 * @param array $column_names Column names array.
 	 */
 	public function set_column_names( $column_names ) {
 		$this->column_names = array();
@@ -98,10 +118,20 @@ abstract class WC_CSV_Exporter {
 	}
 
 	/**
+	 * Return the delimiter to use in CSV file
+	 *
+	 * @since 3.9.0
+	 * @return string
+	 */
+	public function get_delimiter() {
+		return apply_filters( "woocommerce_{$this->export_type}_export_delimiter", $this->delimiter );
+	}
+
+	/**
 	 * Set columns to export.
 	 *
 	 * @since 3.1.0
-	 * @param array $column_names
+	 * @param array $columns Columns array.
 	 */
 	public function set_columns_to_export( $columns ) {
 		$this->columns_to_export = array_map( 'wc_clean', $columns );
@@ -111,7 +141,7 @@ abstract class WC_CSV_Exporter {
 	 * See if a column is to be exported or not.
 	 *
 	 * @since 3.1.0
-	 * @param  string $column_id
+	 * @param  string $column_id ID of the column being exported.
 	 * @return boolean
 	 */
 	public function is_column_exporting( $column_id ) {
@@ -122,7 +152,7 @@ abstract class WC_CSV_Exporter {
 			return true;
 		}
 
-		if ( in_array( $column_id, $columns_to_export ) ) {
+		if ( in_array( $column_id, $columns_to_export, true ) || 'meta' === $column_id ) {
 			return true;
 		}
 
@@ -158,21 +188,30 @@ abstract class WC_CSV_Exporter {
 	 */
 	public function send_headers() {
 		if ( function_exists( 'gc_enable' ) ) {
-			gc_enable();
+			gc_enable(); // phpcs:ignore PHPCompatibility.FunctionUse.NewFunctions.gc_enableFound
 		}
 		if ( function_exists( 'apache_setenv' ) ) {
-			@apache_setenv( 'no-gzip', 1 );
+			@apache_setenv( 'no-gzip', 1 ); // @codingStandardsIgnoreLine
 		}
-		@ini_set( 'zlib.output_compression', 'Off' );
-		@ini_set( 'output_buffering', 'Off' );
-		@ini_set( 'output_handler', '' );
+		@ini_set( 'zlib.output_compression', 'Off' ); // @codingStandardsIgnoreLine
+		@ini_set( 'output_buffering', 'Off' ); // @codingStandardsIgnoreLine
+		@ini_set( 'output_handler', '' ); // @codingStandardsIgnoreLine
 		ignore_user_abort( true );
 		wc_set_time_limit( 0 );
-		nocache_headers();
+		wc_nocache_headers();
 		header( 'Content-Type: text/csv; charset=utf-8' );
 		header( 'Content-Disposition: attachment; filename=' . $this->get_filename() );
 		header( 'Pragma: no-cache' );
 		header( 'Expires: 0' );
+	}
+
+	/**
+	 * Set filename to export to.
+	 *
+	 * @param  string $filename Filename to export to.
+	 */
+	public function set_filename( $filename ) {
+		$this->filename = sanitize_file_name( str_replace( '.csv', '', $filename ) . '.csv' );
 	}
 
 	/**
@@ -181,16 +220,17 @@ abstract class WC_CSV_Exporter {
 	 * @return string
 	 */
 	public function get_filename() {
-		return sanitize_file_name( 'wc-' . $this->export_type . '-export-' . date_i18n( 'Y-m-d', current_time( 'timestamp' ) ) . '.csv' );
+		return sanitize_file_name( apply_filters( "woocommerce_{$this->export_type}_export_get_filename", $this->filename ) );
 	}
 
 	/**
 	 * Set the export content.
 	 *
 	 * @since 3.1.0
+	 * @param string $csv_data All CSV content.
 	 */
 	public function send_content( $csv_data ) {
-		echo $csv_data;
+		echo $csv_data; // @codingStandardsIgnoreLine
 	}
 
 	/**
@@ -212,17 +252,17 @@ abstract class WC_CSV_Exporter {
 	protected function export_column_headers() {
 		$columns    = $this->get_column_names();
 		$export_row = array();
-		$buffer     = fopen( 'php://output', 'w' );
+		$buffer     = fopen( 'php://output', 'w' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_fopen
 		ob_start();
 
 		foreach ( $columns as $column_id => $column_name ) {
 			if ( ! $this->is_column_exporting( $column_id ) ) {
 				continue;
 			}
-			$export_row[] = $column_name;
+			$export_row[] = $this->format_data( $column_name );
 		}
 
-		fputcsv( $buffer, $export_row );
+		$this->fputcsv( $buffer, $export_row );
 
 		return ob_get_clean();
 	}
@@ -241,11 +281,11 @@ abstract class WC_CSV_Exporter {
 	 * Export rows in CSV format.
 	 *
 	 * @since 3.1.0
-	 * @return array
+	 * @return string
 	 */
 	protected function export_rows() {
 		$data   = $this->get_data_to_export();
-		$buffer = fopen( 'php://output', 'w' );
+		$buffer = fopen( 'php://output', 'w' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_fopen
 		ob_start();
 
 		array_walk( $data, array( $this, 'export_row' ), $buffer );
@@ -257,7 +297,9 @@ abstract class WC_CSV_Exporter {
 	 * Export rows to an array ready for the CSV.
 	 *
 	 * @since 3.1.0
-	 * @param array $row_data
+	 * @param array    $row_data Data to export.
+	 * @param string   $key Column being exported.
+	 * @param resource $buffer Output buffer.
 	 */
 	protected function export_row( $row_data, $key, $buffer ) {
 		$columns    = $this->get_column_names();
@@ -274,7 +316,8 @@ abstract class WC_CSV_Exporter {
 			}
 		}
 
-		fputcsv( $buffer, $export_row );
+		$this->fputcsv( $buffer, $export_row );
+
 		++ $this->exported_row_count;
 	}
 
@@ -285,14 +328,14 @@ abstract class WC_CSV_Exporter {
 	 * @return int
 	 */
 	public function get_limit() {
-		return $this->limit;
+		return apply_filters( "woocommerce_{$this->export_type}_export_batch_limit", $this->limit, $this );
 	}
 
 	/**
 	 * Set batch limit.
 	 *
 	 * @since 3.1.0
-	 * @param int $limit
+	 * @param int $limit Limit to export.
 	 */
 	public function set_limit( $limit ) {
 		$this->limit = absint( $limit );
@@ -317,15 +360,25 @@ abstract class WC_CSV_Exporter {
 	 * Additionally, Excel exposes the ability to launch arbitrary commands through
 	 * the DDE protocol.
 	 *
-	 * @see http://www.contextis.com/resources/blog/comma-separated-vulnerabilities/
+	 * Number values are not escaped since a pure numeric value cannot form a valid formula to be injected.
+	 * This preserves negative numeric values (e.g. `-42`) as numbers in the CSV output.
+	 *
+	 * @see https://owasp.org/www-community/attacks/CSV_Injection
 	 * @see https://hackerone.com/reports/72785
 	 *
 	 * @since 3.1.0
-	 * @param string $field CSV field to escape
+	 * @param string $data CSV field to escape.
 	 * @return string
 	 */
 	public function escape_data( $data ) {
-		$active_content_triggers = array( '=', '+', '-', '@' );
+		// 0x09: Tab (\t)
+		// 0x0d: Carriage Return (\r)
+		$active_content_triggers = array( '=', '+', '-', '@', chr( 0x09 ), chr( 0x0d ) );
+
+		// Don't escape pure numeric values since they cannot form a valid formula to be injected.
+		if ( is_int( $data ) || is_float( $data ) ) {
+			return $data;
+		}
 
 		if ( in_array( mb_substr( $data, 0, 1 ), $active_content_triggers, true ) ) {
 			$data = "'" . $data;
@@ -338,7 +391,7 @@ abstract class WC_CSV_Exporter {
 	 * Format and escape data ready for the CSV file.
 	 *
 	 * @since 3.1.0
-	 * @param  string $data
+	 * @param  string $data Data to format.
 	 * @return string
 	 */
 	public function format_data( $data ) {
@@ -352,9 +405,15 @@ abstract class WC_CSV_Exporter {
 			$data = $data ? 1 : 0;
 		}
 
-		$data     = (string) urldecode( $data );
-		$encoding = mb_detect_encoding( $data, 'UTF-8, ISO-8859-1', true );
-		$data     = 'UTF-8' === $encoding ? $data : utf8_encode( $data );
+		$use_mb = function_exists( 'mb_convert_encoding' );
+
+		if ( $use_mb ) {
+			$is_valid_utf_8 = mb_check_encoding( $data, 'UTF-8' );
+			if ( ! $is_valid_utf_8 ) {
+				$data = mb_convert_encoding( $data, 'UTF-8', 'ISO-8859-1' );
+			}
+		}
+
 		return $this->escape_data( $data );
 	}
 
@@ -362,9 +421,9 @@ abstract class WC_CSV_Exporter {
 	 * Format term ids to names.
 	 *
 	 * @since 3.1.0
-	 * @param  array $term_ids
-	 * @param  string $taxonomy
-	 * @return array
+	 * @param  array  $term_ids Term IDs to format.
+	 * @param  string $taxonomy Taxonomy name.
+	 * @return string
 	 */
 	public function format_term_ids( $term_ids, $taxonomy ) {
 		$term_ids = wp_parse_id_list( $term_ids );
@@ -405,6 +464,36 @@ abstract class WC_CSV_Exporter {
 			}
 		}
 
-		return implode( ', ', $formatted_terms );
+		return $this->implode_values( $formatted_terms );
+	}
+
+	/**
+	 * Implode CSV cell values using commas by default, and wrapping values
+	 * which contain the separator.
+	 *
+	 * @since  3.2.0
+	 * @param  array $values Values to implode.
+	 * @return string
+	 */
+	protected function implode_values( $values ) {
+		$values_to_implode = array();
+
+		foreach ( $values as $value ) {
+			$value               = (string) is_scalar( $value ) ? html_entity_decode( $value, ENT_QUOTES ) : '';
+			$values_to_implode[] = str_replace( ',', '\\,', $value );
+		}
+
+		return implode( ', ', $values_to_implode );
+	}
+
+	/**
+	 * Write to the CSV file.
+	 *
+	 * @since 3.4.0
+	 * @param resource $buffer Resource we are writing to.
+	 * @param array    $export_row Row to export.
+	 */
+	protected function fputcsv( $buffer, $export_row ) {
+		fputcsv( $buffer, $export_row, $this->get_delimiter(), '"', "\0" ); // @codingStandardsIgnoreLine
 	}
 }
