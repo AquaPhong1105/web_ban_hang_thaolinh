@@ -4,10 +4,9 @@
  *
  * This class is a fork of GeoIP class from MaxMind LLC.
  *
- * @author 	 WooThemes
- * @category Admin
- * @package  WooCommerce/Classes
- * @version  2.4.0
+ * @package    WooCommerce\Classes
+ * @version    2.4.0
+ * @deprecated 3.4.0
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -16,6 +15,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * WC_Geo_IP Class.
+ *
+ * @deprecated 3.4.0
  */
 class WC_Geo_IP {
 
@@ -364,6 +365,7 @@ class WC_Geo_IP {
 		'MF',
 		'BQ',
 		'SS',
+		'XK',
 		'O1',
 	);
 
@@ -632,7 +634,7 @@ class WC_Geo_IP {
 	);
 
 	/**
-	 * Contry names.
+	 * Country names.
 	 *
 	 * @var array
 	 */
@@ -842,7 +844,7 @@ class WC_Geo_IP {
 		'Sao Tome and Principe',
 		'El Salvador',
 		'Syrian Arab Republic',
-		'Swaziland',
+		'Eswatini',
 		'Turks and Caicos Islands',
 		'Chad',
 		'French Southern Territories',
@@ -854,7 +856,7 @@ class WC_Geo_IP {
 		'Tunisia',
 		'Tonga',
 		'Timor-Leste',
-		'Turkey',
+		'Türkiye',
 		'Trinidad and Tobago',
 		'Tuvalu',
 		'Taiwan',
@@ -892,6 +894,7 @@ class WC_Geo_IP {
 		'Saint Martin',
 		'Bonaire, Saint Eustatius and Saba',
 		'South Sudan',
+		'Kosovo',
 		'Other',
 	);
 
@@ -1193,7 +1196,7 @@ class WC_Geo_IP {
 					$this->memory_buffer = fread( $this->filehandle, $s_array['size'] );
 				}
 			} else {
-				$this->log( 'GeoIP API: Can not open ' . $filename, 'error' );
+				self::log( 'GeoIP API: Can not open ' . $filename, 'error' );
 			}
 		}
 
@@ -1552,7 +1555,7 @@ class WC_Geo_IP {
 			}
 		}
 
-		$this->log( 'GeoIP API: Error traversing database - perhaps it is corrupt?', 'error' );
+		self::log( 'GeoIP API: Error traversing database - perhaps it is corrupt?', 'error' );
 
 		return false;
 	}
@@ -1607,7 +1610,7 @@ class WC_Geo_IP {
 			}
 		}
 
-		$this->log( 'GeoIP API: Error traversing database - perhaps it is corrupt?', 'error' );
+		self::log( 'GeoIP API: Error traversing database - perhaps it is corrupt?', 'error' );
 
 		return false;
 	}
@@ -1636,7 +1639,7 @@ class WC_Geo_IP {
 	 */
 	public function geoip_country_id_by_addr_v6( $addr ) {
 		if ( ! defined( 'AF_INET6' ) ) {
-			$this->log( 'GEOIP (geoip_country_id_by_addr_v6): PHP was compiled with --disable-ipv6 option' );
+			self::log( 'GEOIP (geoip_country_id_by_addr_v6): PHP was compiled with --disable-ipv6 option' );
 			return false;
 		}
 		$ipnum = inet_pton( $addr );

@@ -1,4 +1,11 @@
 <?php
+/**
+ * Default mappings
+ *
+ * @package WooCommerce\Admin\Importers
+ */
+
+use Automattic\WooCommerce\Internal\CostOfGoodsSold\CostOfGoodsSoldController;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -23,17 +30,17 @@ function wc_importer_current_locale() {
  * Add English mapping placeholders when not using English as current language.
  *
  * @since 3.1.0
- * @param array $mappings
+ * @param array $mappings Importer columns mappings.
  * @return array
  */
 function wc_importer_default_english_mappings( $mappings ) {
-	if ( 'en_US' === wc_importer_current_locale() ) {
+	if ( 'en_US' === wc_importer_current_locale() && is_array( $mappings ) && count( $mappings ) > 0 ) {
 		return $mappings;
 	}
 
-	$weight_unit      = get_option( 'woocommerce_weight_unit' );
-	$dimension_unit   = get_option( 'woocommerce_dimension_unit' );
-	$new_mappings = array(
+	$weight_unit    = get_option( 'woocommerce_weight_unit' );
+	$dimension_unit = get_option( 'woocommerce_dimension_unit' );
+	$new_mappings   = array(
 		'ID'                                      => 'id',
 		'Type'                                    => 'type',
 		'SKU'                                     => 'sku',
@@ -50,6 +57,7 @@ function wc_importer_default_english_mappings( $mappings ) {
 		'In stock?'                               => 'stock_status',
 		'Stock'                                   => 'stock_quantity',
 		'Backorders allowed?'                     => 'backorders',
+		'Low stock amount'                        => 'low_stock_amount',
 		'Sold individually?'                      => 'sold_individually',
 		sprintf( 'Weight (%s)', $weight_unit )    => 'weight',
 		sprintf( 'Length (%s)', $dimension_unit ) => 'length',
@@ -71,7 +79,12 @@ function wc_importer_default_english_mappings( $mappings ) {
 		'Grouped products'                        => 'grouped_products',
 		'External URL'                            => 'product_url',
 		'Button text'                             => 'button_text',
+		'Position'                                => 'menu_order',
 	);
+
+	if ( wc_get_container()->get( CostOfGoodsSoldController::class )->feature_is_enabled() ) {
+		$new_mappings['Cost of goods'] = 'cogs_value';
+	}
 
 	return array_merge( $mappings, $new_mappings );
 }
@@ -81,11 +94,11 @@ add_filter( 'woocommerce_csv_product_import_mapping_default_columns', 'wc_import
  * Add English special mapping placeholders when not using English as current language.
  *
  * @since 3.1.0
- * @param array $mappings
+ * @param array $mappings Importer columns mappings.
  * @return array
  */
 function wc_importer_default_special_english_mappings( $mappings ) {
-	if ( 'en_US' === wc_importer_current_locale() ) {
+	if ( 'en_US' === wc_importer_current_locale() && is_array( $mappings ) && count( $mappings ) > 0 ) {
 		return $mappings;
 	}
 
@@ -95,6 +108,7 @@ function wc_importer_default_special_english_mappings( $mappings ) {
 		'Attribute %d visible'  => 'attributes:visible',
 		'Attribute %d global'   => 'attributes:taxonomy',
 		'Attribute %d default'  => 'attributes:default',
+		'Download %d ID'        => 'downloads:id',
 		'Download %d name'      => 'downloads:name',
 		'Download %d URL'       => 'downloads:url',
 		'Meta: %s'              => 'meta:',

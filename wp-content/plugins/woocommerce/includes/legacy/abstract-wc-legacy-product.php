@@ -1,4 +1,7 @@
 <?php
+
+use Automattic\WooCommerce\Enums\ProductType;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -11,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * This class will be removed in future versions.
  *
  * @version  3.0.0
- * @package  WooCommerce/Abstracts
+ * @package  WooCommerce\Abstracts
  * @category Abstract Class
  * @author   WooThemes
  */
@@ -39,7 +42,7 @@ abstract class WC_Abstract_Legacy_Product extends WC_Data {
 			'crosssell_ids',
 			'parent',
 		);
-		if ( $this->is_type( 'variation' ) ) {
+		if ( $this->is_type( ProductType::VARIATION ) ) {
 			$valid = array_merge( $valid, array(
 				'variation_id',
 				'variation_data',
@@ -73,7 +76,7 @@ abstract class WC_Abstract_Legacy_Product extends WC_Data {
 
 		switch ( $key ) {
 			case 'id' :
-				$value = $this->is_type( 'variation' ) ? $this->get_parent_id() : $this->get_id();
+				$value = $this->is_type( ProductType::VARIATION ) ? $this->get_parent_id() : $this->get_id();
 				break;
 			case 'product_type' :
 				$value = $this->get_type();
@@ -123,16 +126,16 @@ abstract class WC_Abstract_Legacy_Product extends WC_Data {
 				$value = wc_get_product( $this->get_parent_id() );
 				break;
 			case 'variation_id' :
-				$value = $this->is_type( 'variation' ) ? $this->get_id() : '';
+				$value = $this->is_type( ProductType::VARIATION ) ? $this->get_id() : '';
 				break;
 			case 'variation_data' :
-				$value = $this->is_type( 'variation' ) ? wc_get_product_variation_attributes( $this->get_id() ) : '';
+				$value = $this->is_type( ProductType::VARIATION ) ? wc_get_product_variation_attributes( $this->get_id() ) : '';
 				break;
 			case 'variation_has_stock' :
-				$value = $this->is_type( 'variation' ) ? $this->managing_stock() : '';
+				$value = $this->is_type( ProductType::VARIATION ) ? $this->managing_stock() : '';
 				break;
 			case 'variation_shipping_class_id' :
-				$value = $this->is_type( 'variation' ) ? $this->get_shipping_class_id() : '';
+				$value = $this->is_type( ProductType::VARIATION ) ? $this->get_shipping_class_id() : '';
 				break;
 			case 'variation_has_sku' :
 			case 'variation_has_length' :
@@ -398,7 +401,7 @@ abstract class WC_Abstract_Legacy_Product extends WC_Data {
 		wc_deprecated_function( 'WC_Product::get_post_data', '3.0', 'get_post' );
 
 		// In order to keep backwards compatibility it's required to use the parent data for variations.
-		if ( $this->is_type( 'variation' ) ) {
+		if ( $this->is_type( ProductType::VARIATION ) ) {
 			$post_data = get_post( $this->get_parent_id() );
 		} else {
 			$post_data = get_post( $this->get_id() );
@@ -585,6 +588,7 @@ abstract class WC_Abstract_Legacy_Product extends WC_Data {
 				$children = $product->get_children( 'edit' );
 			}
 
+			/** @var int[] $children */ // phpcs:ignore Generic.Commenting.DocComment.MissingShort
 			foreach ( $children as $child_id ) {
 				$all_meta = get_post_meta( $child_id );
 
@@ -653,6 +657,9 @@ abstract class WC_Abstract_Legacy_Product extends WC_Data {
 	 */
 	public static function sync_average_rating( $post_id ) {
 		wc_deprecated_function( 'WC_Product::sync_average_rating', '3.0', 'WC_Comments::get_average_rating_for_product or leave to CRUD.' );
+		// See notes in https://github.com/woocommerce/woocommerce/pull/22909#discussion_r262393401.
+		// Sync count first like in the original method https://github.com/woocommerce/woocommerce/blob/2.6.0/includes/abstracts/abstract-wc-product.php#L1101-L1128.
+		self::sync_rating_count( $post_id );
 		$average = WC_Comments::get_average_rating_for_product( wc_get_product( $post_id ) );
 		update_post_meta( $post_id, '_wc_average_rating', $average );
 	}
@@ -681,7 +688,7 @@ abstract class WC_Abstract_Legacy_Product extends WC_Data {
 	}
 
 	/**
-	 * @deprected 3.0.0 Sync is taken care of during save - no need to call this directly.
+	 * @deprecated 3.0.0 Sync is taken care of during save - no need to call this directly.
 	 */
 	public function grouped_product_sync() {
 		wc_deprecated_function( 'WC_Product::grouped_product_sync', '3.0' );

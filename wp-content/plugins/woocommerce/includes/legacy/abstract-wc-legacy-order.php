@@ -1,4 +1,7 @@
 <?php
+
+use Automattic\WooCommerce\Enums\OrderStatus;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -10,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * This class will be removed in future versions.
  *
  * @version	 3.0.0
- * @package	 WooCommerce/Abstracts
+ * @package	 WooCommerce\Abstracts
  * @category	Abstract Class
  * @author	  WooThemes
  */
@@ -158,10 +161,10 @@ abstract class WC_Abstract_Legacy_Order extends WC_Data {
 			}
 		}
 
-		// Handly qty if set
+		// Handle qty if set.
 		if ( isset( $args['qty'] ) ) {
 			if ( $product->backorders_require_notification() && $product->is_on_backorder( $args['qty'] ) ) {
-				$item->add_meta_data( apply_filters( 'woocommerce_backordered_item_meta_name', __( 'Backordered', 'woocommerce' ) ), $args['qty'] - max( 0, $product->get_stock_quantity() ), true );
+				$item->add_meta_data( apply_filters( 'woocommerce_backordered_item_meta_name', __( 'Backordered', 'woocommerce' ), $item ), $args['qty'] - max( 0, $product->get_stock_quantity() ), true );
 			}
 			$args['subtotal'] = $args['subtotal'] ? $args['subtotal'] : wc_get_price_excluding_tax( $product, array( 'qty' => $args['qty'] ) );
 			$args['total']	= $args['total'] ? $args['total'] : wc_get_price_excluding_tax( $product, array( 'qty' => $args['qty'] ) );
@@ -312,11 +315,12 @@ abstract class WC_Abstract_Legacy_Order extends WC_Data {
 
 	/**
 	 * Get a product (either product or variation).
-	 * @deprecated Add deprecation notices in future release. Replaced with $item->get_product()
+	 * @deprecated 4.4.0
 	 * @param object $item
 	 * @return WC_Product|bool
 	 */
 	public function get_product_from_item( $item ) {
+		wc_deprecated_function( 'WC_Abstract_Legacy_Order::get_product_from_item', '4.4.0', '$item->get_product()' );
 		if ( is_callable( array( $item, 'get_product' ) ) ) {
 			$product = $item->get_product();
 		} else {
@@ -328,7 +332,7 @@ abstract class WC_Abstract_Legacy_Order extends WC_Data {
 	/**
 	 * Set the customer address.
 	 * @param array $address Address data.
-	 * @param string $type billing or shipping.
+	 * @param string $type Type of address; 'billing' or 'shipping'.
 	 */
 	public function set_address( $address, $type = 'billing' ) {
 		foreach ( $address as $key => $value ) {
@@ -461,7 +465,7 @@ abstract class WC_Abstract_Legacy_Order extends WC_Data {
 	 * has_meta function for order items. This is different to the WC_Data
 	 * version and should be removed in future versions.
 	 *
-	 * @deprecated
+	 * @deprecated 3.0
 	 *
 	 * @param int $order_item_id
 	 *
@@ -505,7 +509,7 @@ abstract class WC_Abstract_Legacy_Order extends WC_Data {
 				$i++;
 				/* translators: 1: current item count */
 				$prefix  = count( $download_files ) > 1 ? sprintf( __( 'Download %d', 'woocommerce' ), $i ) : __( 'Download', 'woocommerce' );
-				$links[] = '<small class="download-url">' . $prefix . ': <a href="' . esc_url( $file['download_url'] ) . '" target="_blank">' . esc_html( $file['name'] ) . '</a></small>' . "\n";
+				$links[] = '<small class="download-url">' . esc_html( $prefix ) . ': <a href="' . esc_url( $file['download_url'] ) . '" target="_blank">' . esc_html( $file['name'] ) . '</a></small>' . "\n";
 			}
 
 			echo '<br/>' . implode( '<br/>', $links );
@@ -599,6 +603,17 @@ abstract class WC_Abstract_Legacy_Order extends WC_Data {
 	}
 
 	/**
+	 * Get coupon codes only.
+	 *
+	 * @deprecated 3.7.0 - Replaced with better named method to reflect the actual data being returned.
+	 * @return array
+	 */
+	public function get_used_coupons() {
+		wc_deprecated_function( 'get_used_coupons', '3.7', 'WC_Abstract_Order::get_coupon_codes' );
+		return $this->get_coupon_codes();
+	}
+
+	/**
 	 * Expand item meta into the $item array.
 	 * @deprecated 3.0.0 Item meta no longer expanded due to new order item
 	 *		classes. This function now does nothing to avoid data breakage.
@@ -671,7 +686,7 @@ abstract class WC_Abstract_Legacy_Order extends WC_Data {
 	public function cancel_order( $note = '' ) {
 		wc_deprecated_function( 'WC_Order::cancel_order', '3.0', 'WC_Order::update_status' );
 		WC()->session->set( 'order_awaiting_payment', false );
-		$this->update_status( 'cancelled', $note );
+		$this->update_status( OrderStatus::CANCELLED, $note );
 	}
 
 	/**

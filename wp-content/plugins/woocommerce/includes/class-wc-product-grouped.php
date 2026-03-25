@@ -1,18 +1,19 @@
 <?php
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
-}
-
 /**
- * Grouped Product Class.
+ * Grouped Product
  *
  * Grouped products cannot be purchased - they are wrappers for other products.
  *
- * @class 		WC_Product_Grouped
- * @version		3.0.0
- * @package		WooCommerce/Classes/Products
- * @category	Class
- * @author 		WooThemes
+ * @package WooCommerce\Classes\Products
+ * @version 3.0.0
+ */
+
+use Automattic\WooCommerce\Enums\ProductType;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * Product grouped class.
  */
 class WC_Product_Grouped extends WC_Product {
 
@@ -27,20 +28,31 @@ class WC_Product_Grouped extends WC_Product {
 
 	/**
 	 * Get internal type.
+	 *
 	 * @return string
 	 */
 	public function get_type() {
-		return 'grouped';
+		return ProductType::GROUPED;
 	}
 
 	/**
 	 * Get the add to cart button text.
 	 *
-	 * @access public
 	 * @return string
 	 */
 	public function add_to_cart_text() {
 		return apply_filters( 'woocommerce_product_add_to_cart_text', __( 'View products', 'woocommerce' ), $this );
+	}
+
+	/**
+	 * Get the add to cart button text description - used in aria tags.
+	 *
+	 * @since 3.3.0
+	 * @return string
+	 */
+	public function add_to_cart_description() {
+		/* translators: %s: Product title */
+		return apply_filters( 'woocommerce_product_add_to_cart_description', sprintf( __( 'View products in the &ldquo;%s&rdquo; group', 'woocommerce' ), $this->get_name() ), $this );
 	}
 
 	/**
@@ -50,13 +62,13 @@ class WC_Product_Grouped extends WC_Product {
 	 * @return bool
 	 */
 	public function is_on_sale( $context = 'view' ) {
-		global $wpdb;
-
-		$children = array_filter( array_map( 'wc_get_product', $this->get_children( $context ) ), 'wc_products_array_filter_visible_grouped' );
+		$child_ids = $this->get_children( $context );
+		_prime_post_caches( $child_ids );
+		$children = array_filter( array_map( 'wc_get_product', $child_ids ), 'wc_products_array_filter_visible_grouped' );
 		$on_sale  = false;
 
 		foreach ( $children as $child ) {
-			if ( $child->is_on_sale() ) {
+			if ( $child->is_purchasable() && ! $child->has_child() && $child->is_on_sale() ) {
 				$on_sale = true;
 				break;
 			}
@@ -77,8 +89,7 @@ class WC_Product_Grouped extends WC_Product {
 	/**
 	 * Returns the price in html format.
 	 *
-	 * @access public
-	 * @param string $price (default: '')
+	 * @param string $price (default: '').
 	 * @return string
 	 */
 	public function get_price_html( $price = '' ) {
@@ -101,8 +112,13 @@ class WC_Product_Grouped extends WC_Product {
 		}
 
 		if ( '' !== $min_price ) {
-			$price   = $min_price !== $max_price ? sprintf( _x( '%1$s&ndash;%2$s', 'Price range: from-to', 'woocommerce' ), wc_price( $min_price ), wc_price( $max_price ) ) : wc_price( $min_price );
-			$is_free = ( 0 == $min_price && 0 == $max_price );
+			if ( $min_price !== $max_price ) {
+				$price = wc_format_price_range( $min_price, $max_price );
+			} else {
+				$price = wc_price( $min_price );
+			}
+
+			$is_free = 0 === $min_price && 0 === $max_price;
 
 			if ( $is_free ) {
 				$price = apply_filters( 'woocommerce_grouped_free_price_html', __( 'Free!', 'woocommerce' ), $this );
@@ -127,11 +143,59 @@ class WC_Product_Grouped extends WC_Product {
 	/**
 	 * Return the children of this product.
 	 *
-	 * @param  string $context
-	 * @return array
+	 * @param  string $context What the value is for. Valid values are view and edit.
+	 * @return int[]
 	 */
 	public function get_children( $context = 'view' ) {
 		return $this->get_prop( 'children', $context );
+	}
+
+	/**
+	 * Return the product's children - visible only.
+	 *
+	 * @since 9.8.0
+	 * @return WC_Product[] Child products
+	 */
+	public function get_visible_children() {
+		$grouped_products = array_map( 'wc_get_product', $this->get_children() );
+		$grouped_products = array_filter( $grouped_products, 'wc_products_array_filter_visible_grouped' );
+		/** @var WC_Product[] $grouped_products */ // phpcs:ignore Generic.Commenting.DocComment.MissingShort
+
+		return $grouped_products;
+	}
+
+	/**
+	 * Get the minimum price from visible child products.
+	 *
+	 * @since 10.1.0
+	 * @return string Minimum price or empty string if no children
+	 */
+	public function get_min_price() {
+		$children = array_filter( array_map( 'wc_get_product', $this->get_children() ), 'wc_products_array_filter_visible_grouped' );
+		$prices   = array_map( 'wc_get_price_to_display', $children );
+
+		if ( empty( $prices ) ) {
+			return '';
+		}
+
+		return wc_format_decimal( min( $prices ) );
+	}
+
+	/**
+	 * Get the maximum price from visible child products.
+	 *
+	 * @since 10.1.0
+	 * @return string Maximum price or empty string if no children
+	 */
+	public function get_max_price() {
+		$children = array_filter( array_map( 'wc_get_product', $this->get_children() ), 'wc_products_array_filter_visible_grouped' );
+		$prices   = array_map( 'wc_get_price_to_display', $children );
+
+		if ( empty( $prices ) ) {
+			return '';
+		}
+
+		return wc_format_decimal( max( $prices ) );
 	}
 
 	/*
@@ -143,9 +207,9 @@ class WC_Product_Grouped extends WC_Product {
 	*/
 
 	/**
-	 * Return the children of this product.
+	 * Sets an array of children for the product.
 	 *
-	 * @param array $children
+	 * @param array $children List of product children.
 	 */
 	public function set_children( $children ) {
 		$this->set_prop( 'children', array_filter( wp_parse_id_list( (array) $children ) ) );
@@ -162,7 +226,7 @@ class WC_Product_Grouped extends WC_Product {
 	 * upwards (from child to parent) when the variation is saved.
 	 *
 	 * @param WC_Product|int $product Product object or ID for which you wish to sync.
-	 * @param bool $save If true, the prouduct object will be saved to the DB before returning it.
+	 * @param bool           $save If true, the product object will be saved to the DB before returning it.
 	 * @return WC_Product Synced product object.
 	 */
 	public static function sync( $product, $save = true ) {
